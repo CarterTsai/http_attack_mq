@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -11,14 +12,19 @@ import (
 var log = logging.MustGetLogger("http-attack")
 
 var format = logging.MustStringFormatter(
-	`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`,
+	`%{color}%{time:2006-01-02T15:04:05.999999} %{shortfunc} > %{level:.4s} %{id:03x}%{color:reset} %{message}`,
 )
 
 func attack(url string, attackNum int) {
 	var wg sync.WaitGroup
+	backend2 := logging.NewLogBackend(os.Stderr, "", 0)
+	backend2Formatter := logging.NewBackendFormatter(backend2, format)
+	logging.SetBackend(backend2Formatter)
+
 	for i := 0; i < attackNum; i++ {
 		wg.Add(1)
 		go func(ii int) {
+			log.Info("run attack")
 			request := gorequest.New()
 			var startTime = time.Now()
 			resp, _, errp := request.Get(url).End()
@@ -40,7 +46,7 @@ func attack(url string, attackNum int) {
 
 func main() {
 	// 同時攻擊數量
-	attackConcurrentNum := 1
+	attackConcurrentNum := 3
 	// 攻擊次數
 	attackNum := 1
 	// 每次攻擊中間休息時間
