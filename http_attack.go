@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -12,7 +13,7 @@ import (
 var log = logging.MustGetLogger("http-attack")
 
 var format = logging.MustStringFormatter(
-	`%{color}%{time:2006-01-02T15:04:05.999999} %{shortfunc} > %{level:.4s} %{id:03x}%{color:reset} %{message}`,
+	`[%{level:.4s}] %{color}%{time:2006-01-02T15:04:05.999999} %{color:reset} %{message}`,
 )
 
 func attack(url string, attackNum int) {
@@ -24,7 +25,7 @@ func attack(url string, attackNum int) {
 	for i := 0; i < attackNum; i++ {
 		wg.Add(1)
 		go func(ii int) {
-			log.Info("run attack")
+			//log.Info("run attack")
 			request := gorequest.New()
 			var startTime = time.Now()
 			resp, _, errp := request.Get(url).End()
@@ -34,13 +35,17 @@ func attack(url string, attackNum int) {
 				log.Error(errp)
 			} else {
 				//fmt.Print(resp.Body)
-				log.Infof("[%d] => %s", ii, resp.Status)
-				log.Info("responseTime ", endTime.Sub(startTime))
+				log.Infof("[%d] => %s responseTime %s", ii, resp.Status, endTime.Sub(startTime))
 			}
 
 			wg.Done()
 		}(i)
 	}
+
+	if err := recover(); err != nil {
+		fmt.Println(err)
+	}
+
 	wg.Wait()
 }
 
@@ -55,7 +60,7 @@ func main() {
 	log.Info("Concurrent Attack Number :", attackConcurrentNum)
 
 	for attackIndex := 0; attackIndex < attackNum; attackIndex++ {
-		attack("https://www.google.com", attackConcurrentNum)
+		defer attack("https://www.google.com", attackConcurrentNum)
 		time.Sleep((delayTime))
 	}
 }
