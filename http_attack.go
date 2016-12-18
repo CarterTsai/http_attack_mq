@@ -1,66 +1,127 @@
 package main
 
 import (
-	"fmt"
+	"net/url"
 	"os"
-	"sync"
+	"strings"
 	"time"
 
+	"http_attack_mq/lib"
+
 	"github.com/op/go-logging"
-	"github.com/parnurzeal/gorequest"
+	"gopkg.in/urfave/cli.v2"
 )
 
+// VERSION the tool version
+const VERSION string = "0.0.1"
+
 var log = logging.MustGetLogger("http-attack")
+
+// URL
+var uri string
+
+// method
+var method string
+
+// parasm
+var params string
+
+// 同時攻擊數量
+var attackConcurrentNum int
+
+// 攻擊次數
+var attackNum int
+
+// 每次攻擊中間休息時間
+var delayTime int
+
+// 除錯模式
+var debug bool
 
 var format = logging.MustStringFormatter(
 	`[%{level:.4s}] %{color}%{time:2006-01-02T15:04:05.999999} %{color:reset} %{message}`,
 )
 
-func attack(url string, attackNum int) {
-	var wg sync.WaitGroup
-	backend2 := logging.NewLogBackend(os.Stderr, "", 0)
-	backend2Formatter := logging.NewBackendFormatter(backend2, format)
-	logging.SetBackend(backend2Formatter)
-
-	for i := 0; i < attackNum; i++ {
-		wg.Add(1)
-		go func(ii int) {
-			//log.Info("run attack")
-			request := gorequest.New()
-			var startTime = time.Now()
-			resp, _, errp := request.Get(url).End()
-			var endTime = time.Now()
-
-			if errp != nil {
-				log.Error(errp)
-			} else {
-				//fmt.Print(resp.Body)
-				log.Infof("[%d] => %s responseTime %s", ii, resp.Status, endTime.Sub(startTime))
-			}
-
-			wg.Done()
-		}(i)
-	}
-
-	if err := recover(); err != nil {
-		fmt.Println(err)
-	}
-
-	wg.Wait()
-}
-
 func main() {
-	// 同時攻擊數量
-	attackConcurrentNum := 3
-	// 攻擊次數
-	attackNum := 1
-	// 每次攻擊中間休息時間
-	delayTime := 500 * time.Millisecond // equal 1 sec
 
-	log.Info("Concurrent Attack Number :", attackConcurrentNum)
+	app := cli.App{}
+	app.Name = "http_attack_mq"
+	app.Usage = "Make an testing Web Site Loading"
+	app.Version = VERSION
 
-	for attackIndex := 0; attackIndex < attackNum; attackIndex++ {
-		defer attack("https://www.google.com", attackConcurrentNum)
-		time.Sleep((delayTime))
+	app.Flags = []cli.Flag{
+		&cli.StringFlag{
+			Name:        "uri",
+			Value:       "https://www.google.com",
+			Usage:       "網站",
+			Destination: &uri,
+		},
+		&cli.StringFlag{
+			Name:        "method",
+			Value:       "Get",
+			Usage:       "Get, Post, Delete",
+			Destination: &method,
+		},
+		&cli.StringFlag{
+			Name:        "params",
+			Value:       "",
+			Usage:       "params",
+			Destination: &params,
+		},
+		&cli.IntFlag{
+			Name:        "concurrentNum",
+			Value:       1,
+			Usage:       "同時攻擊數",
+			Destination: &attackConcurrentNum,
+		},
+		&cli.IntFlag{
+			Name:        "attackNum",
+			Value:       1,
+			Usage:       "攻擊次數",
+			Destination: &attackNum,
+		},
+		&cli.IntFlag{
+			Name:        "delay",
+			Value:       500,
+			Usage:       "每次攻擊中間休息時間",
+			Destination: &delayTime,
+		},
+		&cli.BoolFlag{
+			Name:        "debug",
+			Value:       false,
+			Usage:       "debug mode",
+			Destination: &debug,
+		},
 	}
+
+	app.Action = func(c *cli.Context) error {
+
+		_delayTime := time.Duration(delayTime) * time.Millisecond
+
+		log.Info("Concurrent Attack Number :", attackConcurrentNum)
+		log.Info("Url :", uri)
+		log.Info("Method :", method)
+
+		attack := lib.Attack{Debug: debug}
+
+		for attackIndex := 0; attackIndex < attackNum; attackIndex++ {
+			switch strings.ToLower(method) {
+			case "post":
+				param, err := url.ParseQuery(params)
+				log.Info(param)
+				if err != nil {
+					log.Error(err)
+				}
+				defer attack.Post(uri, attackConcurrentNum, param)
+				time.Sleep((_delayTime))
+			default:
+			case "get":
+				defer attack.Get(uri, attackConcurrentNum)
+				time.Sleep((_delayTime))
+			}
+		}
+		return nil
+	}
+
+	app.Run(os.Args)
 }
