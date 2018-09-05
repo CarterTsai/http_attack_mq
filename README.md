@@ -14,3 +14,8 @@ Post
 ```
 $> go run http_attack.go --concurrentNum 1  --method post --uri http://localhost --params "token=123"
 ```
+
+PostJSON
+```
+$> go run http_attack.go --concurrentNum 1  --method postjson --uri http://localhost --params "{'token':'123'}"
+```

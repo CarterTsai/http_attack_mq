@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -79,6 +80,48 @@ func (a *Attack) Post(uri string, attackNum int, params url.Values) {
 
 			if errp != nil {
 				log.Error(errp)
+			} else {
+				log.Infof("Post [%d] => %s %s respTime %s", ii, resp.Status, startTime.Format("2006-01-02T15:04:05.999999-07:00"), endTime.Sub(startTime))
+				a.readBody(resp)
+			}
+
+			wg.Done()
+		}(i)
+	}
+
+	if err := recover(); err != nil {
+		log.Error(err)
+	}
+
+	wg.Wait()
+}
+
+// PostJSON post json attack
+func (a *Attack) PostJSON(uri string, attackNum int, params string) {
+	var wg sync.WaitGroup
+
+	backend2 := logging.NewLogBackend(os.Stderr, "", 0)
+	backend2Formatter := logging.NewBackendFormatter(backend2, format)
+	logging.SetBackend(backend2Formatter)
+
+	for i := 0; i < attackNum; i++ {
+		wg.Add(1)
+		go func(ii int) {
+			var startTime = time.Now()
+			var jsonStr = []byte(params)
+			log.Info(jsonStr)
+			req, err := http.NewRequest("POST", uri, bytes.NewBuffer(jsonStr))
+			req.Header.Set("Content-Type", "application/json")
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
+			var endTime = time.Now()
+
+			if err != nil {
+				log.Error(err)
 			} else {
 				log.Infof("Post [%d] => %s %s respTime %s", ii, resp.Status, startTime.Format("2006-01-02T15:04:05.999999-07:00"), endTime.Sub(startTime))
 				a.readBody(resp)

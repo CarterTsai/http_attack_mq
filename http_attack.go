@@ -106,6 +106,9 @@ func main() {
 
 		for attackIndex := 0; attackIndex < attackNum; attackIndex++ {
 			switch strings.ToLower(method) {
+			case "postjson":
+				defer attack.PostJSON(uri, attackConcurrentNum, params)
+				time.Sleep((_delayTime))
 			case "post":
 				param, err := url.ParseQuery(params)
 				log.Info(param)
