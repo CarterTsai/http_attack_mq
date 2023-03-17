@@ -90,18 +90,14 @@ func (a *Attack) Post(uri string, attackNum int, params url.Values) {
 	for i := 0; i < attackNum; i++ {
 		wg.Add(1)
 		go func(ii int) {
-			var startTime = time.Now()
-			resp, errp := http.PostForm(uri, params)
-			var endTime = time.Now()
-
-			if errp != nil {
-				log.Error(errp)
-			} else {
-				log.Infof("Post [%d] => %s %s respTime %s", ii, resp.Status, startTime.Format("2006-01-02T15:04:05.999999-07:00"), endTime.Sub(startTime))
-				a.readBody(resp)
+			defer wg.Done()
+			req, err := http.NewRequest("POST", uri, bytes.NewBufferString(params.Encode()))
+			if err != nil {
+				log.Errorf("Error creating POST request: %s", err)
+				return
 			}
-
-			wg.Done()
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			a.do(req, ii)
 		}(i)
 	}
 
