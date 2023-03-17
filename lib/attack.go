@@ -26,8 +26,32 @@ type Attack struct {
 func (a *Attack) readBody(resp *http.Response) {
 	if a.Debug {
 		defer resp.Body.Close()
-		body, _ := ioutil.ReadAll(resp.Body)
-		log.Infof("%s", body)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Errorf("Error reading response body: %s", err)
+			return
+		}
+		log.Infof("Response body: %s", body)
+	}
+}
+
+func (a *Attack) do(req *http.Request, ii int) {
+	client := &http.Client{}
+	var startTime = time.Now()
+	resp, err := client.Do(req)
+	var endTime = time.Now()
+
+	if err != nil {
+		log.Errorf("Error sending request: %s", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		log.Errorf("HTTP %s %s [%d] respTime %s", req.Method, req.URL.String(), resp.StatusCode, endTime.Sub(startTime))
+	} else {
+		log.Infof("HTTP %s %s [%d] respTime %s", req.Method, req.URL.String(), resp.StatusCode, endTime.Sub(startTime))
+		a.readBody(resp)
 	}
 }
 
@@ -42,22 +66,14 @@ func (a *Attack) Get(uri string, attackNum int) {
 	for i := 0; i < attackNum; i++ {
 		wg.Add(1)
 		go func(ii int) {
-			var startTime = time.Now()
-			resp, errp := http.Get(uri)
-			var endTime = time.Now()
-
-			if errp != nil {
-				log.Error(errp)
-			} else {
-				log.Infof("Get [%d] => %s %s respTime %s", ii, resp.Status, startTime.Format("2006-01-02T15:04:05.999999-07:00"), endTime.Sub(startTime))
+			defer wg.Done()
+			req, err := http.NewRequest("GET", uri, nil)
+			if err != nil {
+				log.Errorf("Error creating GET request: %s", err)
+				return
 			}
-
-			wg.Done()
+			a.do(req, ii)
 		}(i)
-	}
-
-	if err := recover(); err != nil {
-		log.Error(err)
 	}
 
 	wg.Wait()
@@ -89,10 +105,6 @@ func (a *Attack) Post(uri string, attackNum int, params url.Values) {
 		}(i)
 	}
 
-	if err := recover(); err != nil {
-		log.Error(err)
-	}
-
 	wg.Wait()
 }
 
@@ -107,32 +119,16 @@ func (a *Attack) PostJSON(uri string, attackNum int, params string) {
 	for i := 0; i < attackNum; i++ {
 		wg.Add(1)
 		go func(ii int) {
-			var startTime = time.Now()
-			var jsonStr = []byte(params)
-			log.Info(jsonStr)
-			req, err := http.NewRequest("POST", uri, bytes.NewBuffer(jsonStr))
+			defer wg.Done()
+			req, err := http.NewRequest("POST", uri, bytes.NewBufferString(params))
+			if err != nil {
+				log.Errorf("Error creating POST request: %s", err)
+				return
+			}
 			req.Header.Set("Content-Type", "application/json")
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				panic(err)
-			}
-			defer resp.Body.Close()
-			var endTime = time.Now()
-
-			if err != nil {
-				log.Error(err)
-			} else {
-				log.Infof("Post [%d] => %s %s respTime %s", ii, resp.Status, startTime.Format("2006-01-02T15:04:05.999999-07:00"), endTime.Sub(startTime))
-				a.readBody(resp)
-			}
-
-			wg.Done()
+			req.Header.Set("User-Agent", "http-attack")
+			a.do(req, ii)
 		}(i)
-	}
-
-	if err := recover(); err != nil {
-		log.Error(err)
 	}
 
 	wg.Wait()

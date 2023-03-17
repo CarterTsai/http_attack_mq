@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"http_attack_mq/lib"
+	"github.com/CarterTsai/http_attack_mq/lib"
 
 	"github.com/op/go-logging"
-	"gopkg.in/urfave/cli.v2"
+	"github.com/urfave/cli/v2"
 )
 
 // VERSION the tool version
